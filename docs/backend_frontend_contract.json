@@ -1,0 +1,100 @@
+{
+  "event": {
+    "event_id": "evt_01",
+    "timestamp": "2026-08-10T11:30:00+05:30",
+    "source": {
+      "source_id": "host_01",
+      "source_type": "system",
+      "hostname": "sentinel-node-01",
+      "ip": "192.168.1.10"
+    },
+    "actor": {
+      "ip": "203.0.113.25",
+      "user": "admin",
+      "country": "IN"
+    },
+    "target": {
+      "hostname": "sentinel-node-01",
+      "ip": "192.168.1.10",
+      "resource": "/login",
+      "port": 443
+    },
+    "event": {
+      "category": "authentication",
+      "action": "login_attempt",
+      "status": "failed",
+      "severity": "medium",
+      "message": "Failed authentication attempt"
+    },
+    "network": {
+      "protocol": "HTTPS",
+      "direction": "inbound",
+      "port": 443
+    },
+    "detection": {
+      "suspicious": true,
+      "rule_id": "AUTH-001",
+      "rule_name": "Failed Authentication",
+      "confidence": 0.82
+    }
+  },
+
+  "dashboard": {
+    "generated_at": "2026-08-10T11:30:00+05:30",
+    "timezone": "Asia/Kolkata",
+
+    "security_score": 82,
+    "threat_level": "ELEVATED",
+
+    "active_incidents": 3,
+
+    "events": {
+      "total": 1248,
+      "suspicious": 86
+    },
+
+    "severity": {
+      "critical": 2,
+      "high": 18,
+      "medium": 66,
+      "low": 230,
+      "info": 932
+    },
+
+    "systems": {
+      "total": 12,
+      "online": 11,
+      "offline": 1
+    },
+
+    "system_health": {
+      "healthy": 9,
+      "warning": 2,
+      "critical": 1
+    }
+  },
+
+  "incident": {
+    "incident_id": "INC-0001",
+    "title": "Repeated Failed Authentication",
+    "severity": "high",
+    "status": "open",
+    "first_seen": "2026-08-10T11:20:00+05:30",
+    "last_seen": "2026-08-10T11:30:00+05:30",
+    "event_count": 14,
+    "source_ip": "203.0.113.25",
+    "target": "sentinel-node-01",
+    "rule_id": "AUTH-001"
+  },
+
+  "system": {
+    "system_id": "host_01",
+    "hostname": "sentinel-node-01",
+    "ip": "192.168.1.10",
+    "status": "online",
+    "health": "healthy",
+    "cpu_percent": 34.2,
+    "memory_percent": 58.7,
+    "last_seen": "2026-08-10T11:30:00+05:30"
+  }
+}
