@@ -323,13 +323,31 @@ def create_event():
 def get_events():
     try:
         limit = min(
-            int(request.args.get("limit", 50)),
+            max(int(request.args.get("limit", 50)), 1),
             200
         )
 
+        query = {}
+
+        suspicious = request.args.get("suspicious")
+
+        if suspicious is not None:
+            suspicious_value = suspicious.lower()
+
+            if suspicious_value == "true":
+                query["detection.suspicious"] = True
+
+            elif suspicious_value == "false":
+                query["detection.suspicious"] = False
+
+            else:
+                return jsonify({
+                    "error": "suspicious must be true or false"
+                }), 400
+
         cursor = (
             events
-            .find({})
+            .find(query)
             .sort(
                 "timestamp",
                 -1
@@ -341,6 +359,11 @@ def get_events():
             serialize(event)
             for event in cursor
         ])
+
+    except ValueError:
+        return jsonify({
+            "error": "limit must be an integer"
+        }), 400
 
     except Exception as exc:
         return jsonify({
