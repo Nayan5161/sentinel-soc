@@ -14,6 +14,8 @@ from .db import (
 )
 from .schemas import SecurityEvent
 from .detection import analyze_event
+from .correlation import correlate_event
+from .normalizer import normalize_event
 from .analytics import calculate_dashboard
 from .retention import (
     enforce_retention,
@@ -36,12 +38,37 @@ def serialize(document):
     if not document:
         return document
 
+    from datetime import datetime, timezone, timedelta
+
+    ist = timezone(timedelta(hours=5, minutes=30))
+
+    def convert(value):
+        if isinstance(value, datetime):
+            if value.tzinfo is None:
+                value = value.replace(tzinfo=timezone.utc)
+
+            return value.astimezone(ist).isoformat()
+
+        if isinstance(value, dict):
+            return {
+                key: convert(item)
+                for key, item in value.items()
+            }
+
+        if isinstance(value, list):
+            return [
+                convert(item)
+                for item in value
+            ]
+
+        return value
+
     document = dict(document)
 
     if "_id" in document:
         document["_id"] = str(document["_id"])
 
-    return document
+    return convert(document)
 
 
 @app.get("/")
@@ -136,6 +163,108 @@ def dashboard():
         return jsonify({
             "error": str(exc)
         }), 500
+
+
+
+@app.post("/api/ingest")
+def ingest_event():
+    """
+    Universal JSON ingestion endpoint.
+
+    Accepts external/raw JSON, preserves the original payload,
+    normalizes it into Sentinel's event structure, analyzes it,
+    stores it in MongoDB, and publishes it to the live stream.
+    """
+
+    payload = request.get_json(silent=True)
+
+    if not isinstance(payload, dict):
+        return jsonify({
+            "status": "error",
+            "error": "JSON object required"
+        }), 400
+
+    try:
+        normalized = normalize_event(payload)
+
+        validated = SecurityEvent.model_validate(
+            normalized
+        )
+
+        event = validated.model_dump(
+            mode="python"
+        )
+
+        event = analyze_event(event)
+
+        if not event.get("event_id"):
+            event["event_id"] = str(ObjectId())
+
+        event["received_at"] = datetime.now(
+            timezone.utc
+        )
+
+        # Register/update the real originating system.
+        source = event.get("source", {})
+        system_id = source.get("source_id")
+
+        if system_id:
+            systems.update_one(
+                {"system_id": system_id},
+                {
+                    "$set": {
+                        "system_id": system_id,
+                        "hostname": source.get("hostname"),
+                        "ip": source.get("ip"),
+                        "source_type": source.get("source_type"),
+                        "status": "online",
+                        "last_seen": event["received_at"],
+                    },
+                    "$setOnInsert": {
+                        "first_seen": event["received_at"],
+                    },
+                },
+                upsert=True,
+            )
+
+        result = events.insert_one(event)
+
+        event["_id"] = result.inserted_id
+
+        incident = correlate_event(event)
+
+        clean_event = serialize(event)
+
+        response_data = {
+            "status": "accepted",
+            "event_id": event["event_id"],
+            "event": clean_event,
+        }
+
+        if incident:
+            response_data["incident"] = serialize(incident)
+            publish({
+                "type": "incident",
+                "incident": serialize(incident),
+            })
+
+        publish({
+            "type": "event",
+            "event": clean_event,
+        })
+
+        try:
+            enforce_retention()
+        except Exception:
+            pass
+
+        return jsonify(response_data), 201
+
+    except Exception as exc:
+        return jsonify({
+            "status": "error",
+            "error": str(exc)
+        }), 400
 
 
 @app.post("/api/events")
