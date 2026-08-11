@@ -2,14 +2,15 @@ from datetime import datetime, timezone, timedelta
 
 
 def calculate_dashboard(events, systems_count=0, online_systems=0):
-    now = datetime.now(timezone.utc)
+    ist = timezone(timedelta(hours=5, minutes=30))
+    now = datetime.now(ist)
 
     total = len(events)
 
     suspicious = sum(
         1
-        for e in events
-        if e.get("detection", {}).get("suspicious") is True
+        for event in events
+        if event.get("detection", {}).get("suspicious") is True
     )
 
     severity_counts = {
@@ -17,16 +18,20 @@ def calculate_dashboard(events, systems_count=0, online_systems=0):
         "high": 0,
         "medium": 0,
         "low": 0,
-        "info": 0
+        "info": 0,
     }
 
     for event in events:
+
+        # Prefer the severity calculated by the analysis engine.
         severity = (
-            event
-            .get("event", {})
-            .get("severity", "info")
-            .lower()
+            event.get("analysis", {}).get("severity")
+            or event.get("detection", {}).get("severity")
+            or event.get("event", {}).get("severity")
+            or "info"
         )
+
+        severity = str(severity).lower()
 
         if severity in severity_counts:
             severity_counts[severity] += 1
@@ -37,14 +42,17 @@ def calculate_dashboard(events, systems_count=0, online_systems=0):
 
     if critical > 0:
         threat_level = "CRITICAL"
+
     elif high >= 3 or suspicious >= 5:
         threat_level = "HIGH"
+
     elif high > 0 or suspicious > 0:
         threat_level = "ELEVATED"
+
     else:
         threat_level = "NORMAL"
 
-    # Transparent deterministic score.
+    # Transparent deterministic security score.
     security_score = 100
 
     security_score -= critical * 15
@@ -67,7 +75,7 @@ def calculate_dashboard(events, systems_count=0, online_systems=0):
 
         "events": {
             "total": total,
-            "suspicious": suspicious
+            "suspicious": suspicious,
         },
 
         "severity": severity_counts,
@@ -78,8 +86,8 @@ def calculate_dashboard(events, systems_count=0, online_systems=0):
             "offline": max(
                 0,
                 systems_count - online_systems
-            )
+            ),
         },
 
-        "threat_trend": []
+        "threat_trend": [],
     }
